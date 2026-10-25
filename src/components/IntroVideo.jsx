@@ -89,9 +89,6 @@ export default function IntroVideo({ onComplete }) {
         }}
       />
 
-      {/* Cinematic dark vignettes */}
-      <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/80 via-transparent to-charcoal-950/60 pointer-events-none" />
-      <div className="absolute inset-0 bg-radial-gradient from-transparent via-transparent to-charcoal-950/70 pointer-events-none" />
 
       {/* Subtle Resort Logo & Overlay Branding */}
       <div className="absolute top-10 left-0 right-0 flex flex-col items-center justify-center text-center pointer-events-none z-10 px-6">
