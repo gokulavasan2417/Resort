@@ -73,7 +73,7 @@ export default function IntroVideo({ onComplete }) {
       {/* Video Element */}
       <video
         ref={videoRef}
-        src="/videos/Main-6.mp4"
+        src="/videos/Main-8.mp4"
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
         playsInline
         muted
