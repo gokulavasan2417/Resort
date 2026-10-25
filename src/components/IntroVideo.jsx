@@ -5,36 +5,48 @@ import { FastForward, Play } from 'lucide-react';
 export default function IntroVideo({ onComplete }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [progress, setProgress] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const videoRef = useRef(null);
+  const progressBarRef = useRef(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Attempt playback
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          setIsPlaying(true);
-          setIsLoading(false);
-        })
-        .catch((error) => {
-          console.warn('Autoplay prevented or video loading:', error);
-          setAutoplayBlocked(true);
-          setIsLoading(false);
-        });
+    const startPlayback = () => {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setIsLoading(false);
+          })
+          .catch((error) => {
+            console.warn('Autoplay prevented:', error);
+            setAutoplayBlocked(true);
+            setIsLoading(false);
+          });
+      }
+    };
+
+    if (video.readyState >= 3) {
+      startPlayback();
+    } else {
+      video.addEventListener('canplay', startPlayback, { once: true });
     }
+
+    return () => {
+      video.removeEventListener('canplay', startPlayback);
+    };
   }, []);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current && videoRef.current.duration) {
+    if (videoRef.current && videoRef.current.duration && progressBarRef.current) {
       const current = videoRef.current.currentTime;
       const total = videoRef.current.duration;
-      setProgress((current / total) * 100);
+      const pct = (current / total) * 100;
+      progressBarRef.current.style.width = `${pct}%`;
     }
   };
 
@@ -48,13 +60,16 @@ export default function IntroVideo({ onComplete }) {
 
   const handleManualPlay = () => {
     if (videoRef.current) {
-      videoRef.current.play().then(() => {
-        setIsPlaying(true);
-        setAutoplayBlocked(false);
-      }).catch((e) => {
-        console.error('Playback failed', e);
-        onComplete();
-      });
+      videoRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setAutoplayBlocked(false);
+        })
+        .catch((e) => {
+          console.error('Playback failed', e);
+          onComplete();
+        });
     }
   };
 
@@ -74,21 +89,23 @@ export default function IntroVideo({ onComplete }) {
       <video
         ref={videoRef}
         src="/videos/Main-8.mp4"
-        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+        className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform"
         playsInline
         muted
         autoPlay
+        preload="auto"
+        disablePictureInPicture
+        controlsList="nodownload nofullscreen noremoteplayback"
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleVideoEnded}
-        onLoadedData={() => setIsLoading(false)}
+        onWaiting={() => setIsLoading(true)}
+        onPlaying={() => setIsLoading(false)}
         onError={() => {
-          console.warn('Video failed to load from /videos/Main-6.mp4, testing fallback');
+          console.warn('Video failed to load from /videos/Main-8.mp4, testing fallback');
           setHasError(true);
-          // Safety timeout so user is never stuck
           setTimeout(onComplete, 2500);
         }}
       />
-
 
       {/* Subtle Resort Logo & Overlay Branding */}
       <div className="absolute top-10 left-0 right-0 flex flex-col items-center justify-center text-center pointer-events-none z-10 px-6">
@@ -115,9 +132,9 @@ export default function IntroVideo({ onComplete }) {
         </motion.h1>
       </div>
 
-      {/* Video Loading State */}
+      {/* Video Loading / Buffering State */}
       {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-charcoal-950/90 z-20">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-charcoal-950/60 backdrop-blur-sm z-20 pointer-events-none">
           <div className="w-12 h-12 rounded-full border-2 border-gold-500/30 border-t-gold-400 animate-spin" />
           <p className="mt-4 text-xs tracking-[0.25em] uppercase text-sand-300">
             Entering the Sanctuary...
@@ -158,14 +175,15 @@ export default function IntroVideo({ onComplete }) {
         </div>
       )}
 
-      {/* Bottom Controls Bar: Progress & Skip (Unmute button removed) */}
+      {/* Bottom Controls Bar: Progress & Skip */}
       <div className="absolute bottom-8 left-6 right-6 sm:left-12 sm:right-12 z-20 flex items-center justify-between gap-4">
-        {/* Minimal Progress Indicator */}
+        {/* Minimal Progress Indicator (Direct ref for zero re-renders) */}
         <div className="flex items-center flex-1 max-w-xs">
           <div className="w-full h-[2px] bg-white/20 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gold-400 transition-all duration-200 ease-out"
-              style={{ width: `${progress}%` }}
+              ref={progressBarRef}
+              className="h-full bg-gold-400 transition-all duration-150 ease-out"
+              style={{ width: '0%' }}
             />
           </div>
         </div>
