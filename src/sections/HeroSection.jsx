@@ -1,368 +1,321 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Compass, ArrowDown } from 'lucide-react';
-
-export const introSlides = [
-  {
-    id: 1,
-    region: 'East Coast Sanctuary - Chennai',
-    titleLine1: 'HAPPENING',
-    titleLine2: 'VILLA RETREAT',
-    cardTitle: 'HAPPENING VILLA',
-    description:
-      'Set within lush canopy forests, Happening Villa is a cultural and nature sanctuary offering mineral pools, mindful contemplation, and restorative serenity.',
-    image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=2400&q=85',
-  },
-  {
-    id: 2,
-    region: 'Private Bamboo Grove',
-    titleLine1: 'CELESTIAL',
-    titleLine2: 'INFINITY VILLA',
-    cardTitle: 'CELESTIAL INFINITY',
-    description:
-      'A detached architectural residence featuring heated quartzite plunge pool, stone fireplace, cliffside rain shower, and 24-hour dedicated butler care.',
-    image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=2400&q=85',
-  },
-  {
-    id: 3,
-    region: 'Panoramic Alpine Ridge',
-    titleLine1: 'VERDANT',
-    titleLine2: 'HORIZON SUITE',
-    cardTitle: 'VERDANT HORIZON',
-    description:
-      'Expansive living spaces framing unobstructed sunset horizons over mist-draped peaks, complete with Italian soaking tub and private cantilevered terrace.',
-    image: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=2400&q=85',
-  },
-  {
-    id: 4,
-    region: 'Geothermal Waterscape',
-    titleLine1: 'OASIS OF',
-    titleLine2: 'STILLNESS POOL',
-    cardTitle: 'OASIS OF STILLNESS',
-    description:
-      'Tiered quartzite infinity waters gently regulated to 28°C across all seasons. Floating teak daybeds, botanical infusions, and mineral hydrotherapy.',
-    image: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=2400&q=85',
-  },
-  {
-    id: 5,
-    region: 'Multi-Generation Heritage',
-    titleLine1: 'SILVER FIR',
-    titleLine2: 'FAMILY HAVEN',
-    cardTitle: 'SILVER FIR HAVEN',
-    description:
-      'A two-story timber haven with private wildflower gardens, night-sky telescope, open hearth, and Young Rangers forest discovery walks.',
-    image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=2400&q=85',
-  },
-];
+import {
+  Volume2,
+  VolumeX,
+  FastForward,
+  Play,
+  Pause,
+  ArrowDown,
+  Sparkles,
+  Compass,
+} from 'lucide-react';
+import { resortInfo } from '../data/resortData';
 
 export default function HeroSection({ onExplore, onBook }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const heroRef = useRef(null);
-  const wheelLockRef = useRef(false);
-  const touchStartY = useRef(0);
-  const touchStartX = useRef(0);
+  const containerRef = useRef(null);
+  const videoRef = useRef(null);
+  const scrollTimeoutRef = useRef(null);
 
-  const total = introSlides.length;
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [currentTimeStr, setCurrentTimeStr] = useState('00:00');
+  const [durationStr, setDurationStr] = useState('00:10');
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const [isEnded, setIsEnded] = useState(false);
 
-  const goToSlide = useCallback((index) => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    setCurrentIndex(index);
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 700);
-  }, [isAnimating]);
+  // Format seconds to mm:ss
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
-  const handleNext = useCallback(() => {
-    const nextIdx = (currentIndex + 1) % total;
-    goToSlide(nextIdx);
-  }, [currentIndex, total, goToSlide]);
-
-  const handlePrev = useCallback(() => {
-    const prevIdx = (currentIndex - 1 + total) % total;
-    goToSlide(prevIdx);
-  }, [currentIndex, total, goToSlide]);
-
-  // Scroll wheel interaction (just like Intro.mp4 as a scroll animation)
   useEffect(() => {
-    const heroEl = heroRef.current;
-    if (!heroEl) return;
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (!video || !container) return;
 
-    const handleWheel = (e) => {
-      // Only capture wheel when user is at the top of the page
-      if (window.scrollY > 40) return;
+    // Set duration when metadata loads
+    const handleLoadedMetadata = () => {
+      setDurationStr(formatTime(video.duration));
+    };
 
-      if (Math.abs(e.deltaY) < 20) return;
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    if (video.duration) {
+      setDurationStr(formatTime(video.duration));
+    }
 
-      if (wheelLockRef.current) return;
+    // Update progress bar
+    const handleTimeUpdate = () => {
+      if (video.duration) {
+        const pct = (video.currentTime / video.duration) * 100;
+        setVideoProgress(pct);
+        setCurrentTimeStr(formatTime(video.currentTime));
+      }
+    };
+    video.addEventListener('timeupdate', handleTimeUpdate);
 
-      if (e.deltaY > 0) {
-        // Scrolling down
-        if (currentIndex < total - 1) {
-          e.preventDefault();
-          wheelLockRef.current = true;
-          handleNext();
-          setTimeout(() => {
-            wheelLockRef.current = false;
-          }, 800);
-        } else {
-          // On last slide, allow natural scroll down into Rooms section
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setIsEnded(true);
+    };
+    video.addEventListener('ended', handleEnded);
+
+    // Scroll-driven playback:
+    // When user scrolls, video plays.
+    // When user stops scrolling (180ms inactivity), video pauses.
+    // When user scrolls again, video resumes playing.
+    const handleScrollOrWheel = () => {
+      const rect = container.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+
+      // Only respond when intro container is active/visible in viewport
+      if (rect.bottom > 100 && rect.top <= 0) {
+        setHasScrolled(true);
+
+        // Play video while scrolling
+        if (video.paused && !video.ended) {
+          video
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch(() => {
+              // Silently handle browser autoplay policy
+            });
         }
-      } else if (e.deltaY < 0) {
-        // Scrolling up
-        if (currentIndex > 0) {
-          e.preventDefault();
-          wheelLockRef.current = true;
-          handlePrev();
-          setTimeout(() => {
-            wheelLockRef.current = false;
-          }, 800);
+
+        // Clear existing pause timeout
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+
+        // Pause as soon as user stops scrolling (180ms debounce)
+        scrollTimeoutRef.current = setTimeout(() => {
+          if (video && !video.paused) {
+            video.pause();
+            setIsPlaying(false);
+          }
+        }, 180);
+      } else if (rect.top > 0) {
+        // User scrolled back to top
+        if (!video.paused) {
+          video.pause();
+          setIsPlaying(false);
+        }
+      } else if (rect.bottom <= 0) {
+        // User scrolled completely past intro
+        if (!video.paused) {
+          video.pause();
+          setIsPlaying(false);
         }
       }
     };
 
-    heroEl.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('scroll', handleScrollOrWheel, { passive: true });
+    window.addEventListener('wheel', handleScrollOrWheel, { passive: true });
+    window.addEventListener('touchmove', handleScrollOrWheel, { passive: true });
+
     return () => {
-      heroEl.removeEventListener('wheel', handleWheel);
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ended', handleEnded);
+      window.removeEventListener('scroll', handleScrollOrWheel);
+      window.removeEventListener('wheel', handleScrollOrWheel);
+      window.removeEventListener('touchmove', handleScrollOrWheel);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
-  }, [currentIndex, total, handleNext, handlePrev]);
+  }, []);
 
-  // Touch Swipe for mobile/tablet
-  const handleTouchStart = (e) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e) => {
-    const deltaY = touchStartY.current - e.changedTouches[0].clientY;
-    const deltaX = touchStartX.current - e.changedTouches[0].clientX;
-
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
-      if (deltaX > 0) handleNext();
-      else handlePrev();
-    } else if (window.scrollY < 20 && Math.abs(deltaY) > 50) {
-      if (deltaY > 0 && currentIndex < total - 1) handleNext();
-      else if (deltaY < 0 && currentIndex > 0) handlePrev();
+  const toggleSound = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
     }
   };
 
-  const current = introSlides[currentIndex];
+  const handleSkipToRooms = () => {
+    const roomsEl = document.getElementById('rooms');
+    if (roomsEl) {
+      roomsEl.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      onExplore();
+    }
+  };
 
-  // The 3 upcoming cards displayed on the right (matching Intro.mp4 layout)
-  const upcomingCards = [];
-  for (let i = 1; i <= 3; i++) {
-    const cardIdx = (currentIndex + i) % total;
-    upcomingCards.push({
-      ...introSlides[cardIdx],
-      originalIndex: cardIdx,
-    });
-  }
+  const handleReplay = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      setIsEnded(false);
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
 
   return (
     <section
       id="hero"
-      ref={heroRef}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      className="relative h-screen min-h-[700px] w-full overflow-hidden bg-charcoal-950 select-none"
+      ref={containerRef}
+      className="relative min-h-[220vh] bg-charcoal-950 select-none"
     >
-      {/* Background Image with Smooth Crossfade & Ken-Burns Zoom (Matching Intro.mp4) */}
-      <AnimatePresence mode="popLayout">
-        <motion.div
-          key={`bg-${current.id}`}
-          initial={{ opacity: 0, scale: 1.08 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{
-            opacity: { duration: 0.85, ease: [0.25, 1, 0.5, 1] },
-            scale: { duration: 7, ease: 'easeOut' },
-          }}
-          className="absolute inset-0 w-full h-full transform-gpu will-change-transform"
-        >
-          <img
-            src={current.image}
-            alt={`${current.titleLine1} ${current.titleLine2}`}
-            className="w-full h-full object-cover object-center"
-          />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Cinematic Vignette Overlays matching Intro.mp4 (Stronger left shade for text clarity) */}
-      <div className="absolute inset-0 bg-gradient-to-r from-charcoal-950/85 via-charcoal-950/40 to-transparent pointer-events-none" />
-      <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/90 via-transparent to-charcoal-950/50 pointer-events-none" />
-
-      {/* Main Grid: Left Text Column + Right Floating Cards */}
-      <div className="relative z-10 w-full h-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20 flex flex-col justify-between pt-28 pb-10">
+      {/* Sticky Fullscreen Video Stage */}
+      <div className="sticky top-0 h-screen w-full overflow-hidden bg-charcoal-950 flex flex-col justify-between">
         
-        {/* Middle Container */}
-        <div className="my-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        {/* Main Background Video */}
+        <video
+          ref={videoRef}
+          src="/videos/Main-8.mp4"
+          className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform"
+          playsInline
+          muted={isMuted}
+          preload="auto"
+        />
+
+        {/* Cinematic Vignette Overlays for Maximum Legibility */}
+        <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/90 via-transparent to-charcoal-950/60 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-charcoal-950/60 via-transparent to-charcoal-950/60 pointer-events-none" />
+
+        {/* Top Floating Controls Bar */}
+        <div className="relative z-20 w-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20 pt-24 sm:pt-28 flex items-center justify-between">
           
-          {/* Left Column: Bold Condensed Typography & Content (Exact Intro.mp4 Style) */}
-          <div className="lg:col-span-6 xl:col-span-5 pr-4">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`content-${current.id}`}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -25 }}
-                transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-                className="space-y-4 sm:space-y-5"
-              >
-                {/* Region / Category Subtitle */}
-                <motion.p
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.1 }}
-                  className="text-xs sm:text-sm font-sans font-medium tracking-widest text-cream-100 uppercase"
-                >
-                  {current.region}
-                </motion.p>
-
-                {/* Massive Bold Headline in 2 lines (Oswald / Condensed Sans from Intro.mp4) */}
-                <div className="font-oswald text-5xl sm:text-7xl md:text-8xl lg:text-[90px] xl:text-[98px] font-bold text-white uppercase tracking-tight leading-[0.88] drop-shadow-md">
-                  <div>{current.titleLine1}</div>
-                  <div>{current.titleLine2}</div>
-                </div>
-
-                {/* Narrative Description Paragraph */}
-                <p className="text-xs sm:text-sm md:text-base text-cream-100/80 font-light leading-relaxed max-w-lg tracking-normal">
-                  {current.description}
-                </p>
-
-                {/* Pill Button: [icon] DISCOVER LOCATION (Exact match to Intro.mp4 button) */}
-                <div className="pt-3 flex items-center gap-4">
-                  <button
-                    onClick={onExplore}
-                    className="group inline-flex items-center gap-3 px-6 sm:px-7 py-3 rounded-full bg-charcoal-950/40 hover:bg-white text-white hover:text-charcoal-950 border border-white/40 hover:border-white backdrop-blur-md text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-xl active:scale-95"
-                  >
-                    <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center">
-                      <Compass size={12} className="group-hover:rotate-45 transition-transform duration-500" />
-                    </span>
-                    <span>DISCOVER LOCATION</span>
-                  </button>
-
-                  <button
-                    onClick={onBook}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gold-500 hover:bg-gold-400 text-charcoal-950 text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-lg shadow-gold-500/25 active:scale-95"
-                  >
-                    <span className="font-serif font-bold text-sm leading-none">₹</span>
-                    <span>RESERVE</span>
-                  </button>
-                </div>
-              </motion.div>
-            </AnimatePresence>
+          {/* Subtle Tag */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-charcoal-950/70 backdrop-blur-md border border-gold-400/30 text-gold-300 text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase">
+            <Sparkles size={11} className="text-gold-400" />
+            <span>Cinematic Sanctuary Intro</span>
           </div>
 
-          {/* Right Column: Floating Cards Carousel (Exact match to Intro.mp4) */}
-          <div className="hidden md:flex lg:col-span-6 xl:col-span-7 justify-end items-center overflow-visible pl-4">
-            <div className="flex items-center gap-4 sm:gap-5">
-              {upcomingCards.map((card, idx) => (
-                <motion.div
-                  key={`carousel-card-${card.id}`}
-                  initial={{ opacity: 0, x: 60 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: idx * 0.1, ease: 'easeOut' }}
-                  onClick={() => goToSlide(card.originalIndex)}
-                  className="group relative w-44 sm:w-52 md:w-56 lg:w-48 xl:w-56 h-64 sm:h-76 md:h-84 lg:h-76 xl:h-88 rounded-2xl overflow-hidden cursor-pointer shadow-2xl border border-white/25 hover:border-gold-400 transition-all duration-500 hover:-translate-y-2 hover:shadow-gold-500/25 flex-shrink-0"
-                >
-                  {/* Card Background Image */}
-                  <img
-                    src={card.image}
-                    alt={card.cardTitle}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                  />
+          {/* Sound & Skip Controls */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSound}
+              aria-label={isMuted ? 'Unmute video audio' : 'Mute video audio'}
+              className="p-2.5 rounded-full bg-charcoal-950/70 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md transition-all duration-300 active:scale-95 shadow-lg"
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
 
-                  {/* Dark Bottom Gradient for text contrast */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/90 via-charcoal-950/30 to-transparent" />
-
-                  {/* Card Labels at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 space-y-1">
-                    <p className="text-[10px] sm:text-[11px] uppercase tracking-wider text-white/80 font-medium truncate">
-                      {card.region}
-                    </p>
-                    <h3 className="font-oswald text-base sm:text-lg font-bold text-white uppercase tracking-tight leading-tight group-hover:text-gold-300 transition-colors">
-                      {card.cardTitle}
-                    </h3>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            <button
+              onClick={handleSkipToRooms}
+              className="group inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full bg-charcoal-950/70 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md text-xs uppercase tracking-widest font-medium transition-all duration-300 active:scale-95 shadow-lg"
+            >
+              <span>Skip to Rooms</span>
+              <FastForward size={14} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
           </div>
 
         </div>
 
-        {/* Bottom Controls Bar: Circular Arrows + Amber Progress Line + Big Slide Number */}
-        <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
-          
-          {/* Left: Previous & Next Circular Buttons + Progress Bar (Exact Intro.mp4 layout) */}
-          <div className="flex items-center gap-4 sm:gap-6">
-            
-            {/* Circular Navigation Buttons */}
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={handlePrev}
-                aria-label="Previous Slide"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group"
-              >
-                <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
-              </button>
-
-              <button
-                onClick={handleNext}
-                aria-label="Next Slide"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group"
-              >
-                <ChevronRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            </div>
-
-            {/* Orange / Gold Progress Bar Line */}
-            <div className="w-36 sm:w-60 md:w-80 h-[3px] bg-white/20 rounded-full overflow-hidden relative">
+        {/* Center: Interactive Scroll Guidance Cue */}
+        <div className="relative z-20 my-auto text-center px-4 pointer-events-none">
+          <AnimatePresence>
+            {!hasScrolled && (
               <motion.div
-                key={`progress-${currentIndex}`}
-                initial={{ width: `${(currentIndex / total) * 100}%` }}
-                animate={{ width: `${((currentIndex + 1) / total) * 100}%` }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-                className="h-full bg-gradient-to-r from-amber-500 to-amber-300 shadow-sm shadow-amber-400/50"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.8 }}
+                className="inline-flex flex-col items-center gap-3 p-6 sm:p-8 rounded-3xl bg-charcoal-950/75 backdrop-blur-xl border border-gold-400/30 shadow-2xl max-w-md mx-auto"
+              >
+                <div className="w-12 h-12 rounded-full border border-gold-400/40 flex items-center justify-center text-gold-300 animate-pulse">
+                  <Play size={20} className="fill-gold-300 ml-0.5" />
+                </div>
+                <div>
+                  <h2 className="font-serif text-xl sm:text-2xl text-cream-50 font-normal">
+                    Scroll To Play Cinematic Intro
+                  </h2>
+                  <p className="text-xs text-sand-300 font-light mt-1.5 leading-relaxed">
+                    Scroll down to explore. Stopping your scroll pauses the cinematic; scrolling resumes playback.
+                  </p>
+                </div>
+                <motion.div
+                  animate={{ y: [0, 6, 0] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="mt-1 flex items-center gap-1.5 text-[11px] font-mono text-gold-400 uppercase tracking-widest"
+                >
+                  <ArrowDown size={14} />
+                  <span>Scroll Down</span>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Replay Option when Ended */}
+          {isEnded && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="inline-flex flex-col items-center gap-4 p-6 rounded-3xl bg-charcoal-950/80 backdrop-blur-xl border border-gold-400/40 shadow-2xl pointer-events-auto"
+            >
+              <h3 className="font-serif text-xl text-cream-50">
+                Welcome to {resortInfo.brandName}
+              </h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSkipToRooms}
+                  className="px-6 py-3 rounded-full bg-gold-500 hover:bg-gold-400 text-charcoal-950 font-bold text-xs uppercase tracking-widest transition-all shadow-lg"
+                >
+                  Proceed to Rooms (Page 2)
+                </button>
+                <button
+                  onClick={handleReplay}
+                  className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs uppercase tracking-wider font-medium transition-all"
+                >
+                  Replay Intro
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Bottom Bar: Live Playback Status & Video Progress Track */}
+        <div className="relative z-20 w-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20 pb-8 sm:pb-10">
+          <div className="p-4 sm:p-5 rounded-2xl bg-charcoal-950/80 backdrop-blur-xl border border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xl">
+            
+            {/* Status indicator: Playing on Scroll / Paused */}
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  isPlaying
+                    ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50 animate-ping'
+                    : 'bg-amber-400/80'
+                }`}
               />
+              <span className="font-mono text-xs uppercase tracking-wider text-cream-100 font-medium">
+                {isPlaying ? 'PLAYING ON SCROLL' : 'PAUSED • SCROLL TO ADVANCE'}
+              </span>
             </div>
 
-          </div>
+            {/* Video Progress Line */}
+            <div className="flex-1 max-w-md sm:mx-6 flex items-center gap-3">
+              <span className="font-mono text-[10px] text-sand-400 w-10 text-right">
+                {currentTimeStr}
+              </span>
+              <div className="flex-1 h-[3px] bg-white/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-gold-500 to-amber-300 transition-all duration-100"
+                  style={{ width: `${videoProgress}%` }}
+                />
+              </div>
+              <span className="font-mono text-[10px] text-sand-400 w-10">
+                {durationStr}
+              </span>
+            </div>
 
-          {/* Right: Big Bold Slide Number (Exact match to Intro.mp4 number counter e.g. 2, 3, 4, 5) */}
-          <div className="flex items-baseline">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={`number-${currentIndex}`}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.3 }}
-                className="font-oswald text-4xl sm:text-6xl font-bold text-white tracking-tight leading-none"
-              >
-                {currentIndex + 1}
-              </motion.span>
-            </AnimatePresence>
-            <span className="font-oswald text-xs sm:text-sm text-white/50 ml-1.5 font-light">
-              / {total}
-            </span>
-          </div>
+            {/* Action to proceed to page 2 */}
+            <button
+              onClick={handleSkipToRooms}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full bg-gold-500/20 hover:bg-gold-500 text-gold-300 hover:text-charcoal-950 border border-gold-400/40 text-xs font-semibold uppercase tracking-wider transition-all duration-300"
+            >
+              <span>Explore Page 2: Rooms</span>
+              <ArrowDown size={14} />
+            </button>
 
+          </div>
         </div>
 
       </div>
-
-      {/* Floating Scroll Indicator */}
-      <motion.div
-        animate={{ y: [0, 5, 0] }}
-        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-        onClick={onExplore}
-        className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1 cursor-pointer text-white/60 hover:text-gold-300 transition-colors pointer-events-auto"
-      >
-        <span className="text-[9px] tracking-[0.3em] uppercase font-light">Scroll Down</span>
-        <ArrowDown size={12} className="text-amber-400" />
-      </motion.div>
     </section>
   );
 }
