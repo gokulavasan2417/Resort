@@ -5,121 +5,138 @@ import { Volume2, VolumeX, FastForward, ArrowDown } from 'lucide-react';
 export default function HeroSection({ onExplore }) {
   const videoRef = useRef(null);
   const pauseTimeoutRef = useRef(null);
+  const isPlayingRef = useRef(false);
   const isCompletedRef = useRef(false);
 
   const [isMuted, setIsMuted] = useState(true);
   const [hasStarted, setHasStarted] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
 
+  // Helper to safely play video
+  const playVideo = (speed = 1.0) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.playbackRate = speed;
+
+    if (video.paused && !video.ended) {
+      isPlayingRef.current = true;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Playback notice:', err);
+        });
+      }
+    }
+  };
+
+  // Helper to safely pause video
+  const pauseVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!video.paused) {
+      video.pause();
+      isPlayingRef.current = false;
+    }
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // If user loaded the page already scrolled down, allow normal scroll
-    if (window.scrollY > 80) {
-      isCompletedRef.current = true;
-      setIsCompleted(true);
+    // Explicitly guarantee DOM muted status for browser autoplay compliance
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+
+    // Lock page scroll initially so user scrolls through the video FIRST
+    // and doesn't get jumped to the next page while the video is playing
+    if (window.scrollY <= 20 && !isCompletedRef.current) {
+      document.body.style.overflow = 'hidden';
     }
 
+    // Monitor video progress to detect completion (Happening Villa logo frame)
     const handleTimeUpdate = () => {
-      // When video reaches within 0.3s of the end (the Happening Villa logo frame)
-      if (video.duration && video.currentTime >= video.duration - 0.3) {
-        video.pause();
+      if (video.duration && video.currentTime >= video.duration - 0.25) {
+        pauseVideo();
         isCompletedRef.current = true;
         setIsCompleted(true);
+        document.body.style.overflow = ''; // Unlock page scroll to allow moving to Page 2
       }
     };
 
     const handleEnded = () => {
+      pauseVideo();
       isCompletedRef.current = true;
       setIsCompleted(true);
+      document.body.style.overflow = '';
     };
 
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ended', handleEnded);
 
     // Scroll wheel handler:
-    // When at the top of the page and video has not completed:
-    // Intercept scroll so page DOES NOT move to the next page!
-    // Instead: scrolling plays the video forward!
-    // Stopping scroll pauses the video!
-    // When video completes, normal page scroll is restored to move to Page 2.
+    // As long as video is not completed, wheeling DOWN plays video forward,
+    // stopping wheeling pauses video, wheeling UP rewinds video.
+    // Once video is completed, standard page scroll handles moving to Page 2.
     const handleWheel = (e) => {
-      // If user is at top of page and video hasn't finished:
-      if (window.scrollY <= 15 && !isCompletedRef.current) {
+      if (!isCompletedRef.current) {
+        e.preventDefault();
+        setHasStarted(true);
+
         if (e.deltaY > 0) {
-          // User scrolling down: lock page scroll and play video
-          e.preventDefault();
-          setHasStarted(true);
+          // Scrolling down: Play video forward
+          const speed = Math.abs(e.deltaY) > 80 ? 1.4 : Math.abs(e.deltaY) > 30 ? 1.2 : 1.0;
+          playVideo(speed);
 
-          // Dynamic playback rate based on scroll intensity
-          if (Math.abs(e.deltaY) > 80) {
-            video.playbackRate = 1.4;
-          } else if (Math.abs(e.deltaY) > 30) {
-            video.playbackRate = 1.15;
-          } else {
-            video.playbackRate = 1.0;
-          }
-
-          if (video.paused && !video.ended) {
-            video.play().catch(() => {});
-          }
-
-          // Clear existing pause timer
+          // Clear existing pause timeout
           if (pauseTimeoutRef.current) {
             clearTimeout(pauseTimeoutRef.current);
           }
 
-          // Pause video when scrolling stops (200ms inactivity)
+          // When scrolling stops (220ms inactivity), pause video!
           pauseTimeoutRef.current = setTimeout(() => {
-            if (video && !video.paused) {
-              video.pause();
-            }
-          }, 200);
+            pauseVideo();
+          }, 220);
         } else if (e.deltaY < 0) {
-          // User scrolling up: gently rewind video
-          e.preventDefault();
-          video.pause();
-          video.currentTime = Math.max(0, video.currentTime - 0.35);
-          if (isCompletedRef.current) {
-            isCompletedRef.current = false;
-            setIsCompleted(false);
+          // Scrolling up: Rewind slightly
+          pauseVideo();
+          if (video) {
+            video.currentTime = Math.max(0, video.currentTime - 0.4);
           }
         }
       }
     };
 
-    // Touch handling for mobile
+    // Touch handlers for mobile/tablets
     let touchStartY = 0;
     const handleTouchStart = (e) => {
       touchStartY = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e) => {
-      if (window.scrollY <= 15 && !isCompletedRef.current) {
+      if (!isCompletedRef.current) {
         const deltaY = touchStartY - e.touches[0].clientY;
-        if (deltaY > 5) {
-          // Swiping up to scroll down
+        if (deltaY > 4) {
           e.preventDefault();
           setHasStarted(true);
-
-          if (video.paused && !video.ended) {
-            video.play().catch(() => {});
-          }
+          playVideo(1.1);
 
           if (pauseTimeoutRef.current) {
             clearTimeout(pauseTimeoutRef.current);
           }
 
           pauseTimeoutRef.current = setTimeout(() => {
-            if (video && !video.paused) {
-              video.pause();
-            }
+            pauseVideo();
           }, 220);
-        } else if (deltaY < -5) {
+        } else if (deltaY < -4) {
           e.preventDefault();
-          video.pause();
-          video.currentTime = Math.max(0, video.currentTime - 0.3);
+          pauseVideo();
+          if (video) {
+            video.currentTime = Math.max(0, video.currentTime - 0.3);
+          }
         }
       }
     };
@@ -129,6 +146,7 @@ export default function HeroSection({ onExplore }) {
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     return () => {
+      document.body.style.overflow = '';
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ended', handleEnded);
       window.removeEventListener('wheel', handleWheel);
@@ -148,6 +166,7 @@ export default function HeroSection({ onExplore }) {
   const handleSkip = () => {
     isCompletedRef.current = true;
     setIsCompleted(true);
+    document.body.style.overflow = '';
     const roomsEl = document.getElementById('rooms');
     if (roomsEl) {
       roomsEl.scrollIntoView({ behavior: 'smooth' });
@@ -156,12 +175,26 @@ export default function HeroSection({ onExplore }) {
     }
   };
 
+  // Click on video to toggle play / pause directly
+  const handleVideoClick = () => {
+    setHasStarted(true);
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      playVideo();
+    } else {
+      pauseVideo();
+    }
+  };
+
   return (
     <section
       id="hero"
-      className="relative h-screen w-full overflow-hidden bg-charcoal-950 select-none"
+      className="relative h-screen w-full overflow-hidden bg-charcoal-950 select-none cursor-pointer"
+      onClick={handleVideoClick}
     >
-      {/* Fullscreen Cinematic Main-8 Video */}
+      {/* Fullscreen Cinematic Video */}
       <video
         ref={videoRef}
         src="/videos/Main-8.mp4"
@@ -174,8 +207,11 @@ export default function HeroSection({ onExplore }) {
       {/* Subtle Cinematic Vignette for Ambient Contrast */}
       <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/70 via-transparent to-charcoal-950/40 pointer-events-none" />
 
-      {/* Top Controls: Sound & Skip Button (Clean, unobtrusive) */}
-      <div className="absolute top-24 right-6 sm:right-12 z-20 flex items-center gap-3">
+      {/* Minimal Top Controls: Sound & Skip (Clean and unobtrusive) */}
+      <div
+        className="absolute top-24 right-6 sm:right-12 z-20 flex items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={toggleSound}
           aria-label={isMuted ? 'Unmute video audio' : 'Mute video audio'}
@@ -193,7 +229,7 @@ export default function HeroSection({ onExplore }) {
         </button>
       </div>
 
-      {/* Initial Subtle Scroll Cue (Fades out once user begins scrolling) */}
+      {/* Initial Gentle Scroll Cue (Fades away once user starts scrolling) */}
       <AnimatePresence>
         {!hasStarted && (
           <motion.div
@@ -217,14 +253,17 @@ export default function HeroSection({ onExplore }) {
         )}
       </AnimatePresence>
 
-      {/* Completion Cue: Appears when video finishes on the Happening Villa logo */}
+      {/* Completion Indicator: Appears when video finishes on the Happening Villa emblem */}
       <AnimatePresence>
         {isCompleted && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
-            onClick={handleSkip}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSkip();
+            }}
             className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 cursor-pointer flex flex-col items-center gap-2 group"
           >
             <span className="text-xs uppercase tracking-[0.3em] text-gold-300 group-hover:text-white transition-colors font-medium drop-shadow-lg">
@@ -233,7 +272,7 @@ export default function HeroSection({ onExplore }) {
             <motion.div
               animate={{ y: [0, 8, 0] }}
               transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-              className="p-2 rounded-full bg-charcoal-950/70 border border-gold-400/50 text-gold-300 group-hover:bg-gold-500 group-hover:text-charcoal-950 transition-all shadow-xl"
+              className="p-2.5 rounded-full bg-charcoal-950/80 border border-gold-400/50 text-gold-300 group-hover:bg-gold-500 group-hover:text-charcoal-950 transition-all shadow-xl"
             >
               <ArrowDown size={16} />
             </motion.div>
