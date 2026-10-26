@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Compass, ArrowDown } from 'lucide-react';
 
@@ -59,12 +59,11 @@ export default function HeroSection({ onExplore, onBook }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const heroRef = useRef(null);
-  const currentIndexRef = useRef(0);
-  currentIndexRef.current = currentIndex;
 
   const isTransitioningRef = useRef(false);
-  const touchStartY = useRef(0);
-  const touchStartX = useRef(0);
+  const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  const isMouseDownRef = useRef(false);
 
   const total = introSlides.length;
 
@@ -89,136 +88,51 @@ export default function HeroSection({ onExplore, onBook }) {
     goToSlide(prevIdx);
   }, [currentIndex, total, goToSlide]);
 
-  // Rock-solid scroll lock:
-  // When user is on this page, the page is locked in place while scrolling through rooms.
-  // Scrolling DOWN advances Room 1 -> Room 2 -> Room 3 -> Room 4 -> Room 5.
-  // Scrolling UP rewinds Room 5 -> Room 4 -> Room 3 -> Room 2 -> Room 1.
-  // ONLY after viewing all rooms (on Room 5) does scrolling DOWN proceed to Page 2 (Rooms)!
-  useEffect(() => {
-    const heroEl = heroRef.current;
-    if (!heroEl) return;
+  // Mouse Drag Swipe Handlers (Horizontal Swipe)
+  const handleMouseDown = (e) => {
+    // Avoid triggering drag if user clicked an interactive button or link
+    if (e.target.closest('button, a, input, select')) return;
+    isMouseDownRef.current = true;
+    dragStartX.current = e.clientX;
+    dragStartY.current = e.clientY;
+  };
 
-    let wheelDebounce = false;
+  const handleMouseUp = (e) => {
+    if (!isMouseDownRef.current) return;
+    isMouseDownRef.current = false;
+    const deltaX = dragStartX.current - e.clientX;
+    const deltaY = dragStartY.current - e.clientY;
 
-    const handleWheel = (e) => {
-      const rect = heroEl.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-
-      // Check if Hero section is in active view (takes up at least half the viewport)
-      const isInView = rect.top < windowHeight * 0.65 && rect.bottom > windowHeight * 0.35;
-
-      if (!isInView) return;
-
-      if (Math.abs(e.deltaY) < 18) return;
-
-      // While user has NOT viewed all rooms (index 0, 1, 2, 3):
-      if (currentIndexRef.current < total - 1) {
-        // ALWAYS LOCK PAGE SCROLL! The page cannot scroll to the next page!
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (wheelDebounce || isTransitioningRef.current) return;
-
-        if (e.deltaY > 0) {
-          // Scroll down -> advance to next room automatically
-          wheelDebounce = true;
-          const nextIdx = currentIndexRef.current + 1;
-          goToSlide(nextIdx);
-          setTimeout(() => {
-            wheelDebounce = false;
-          }, 650);
-        } else if (e.deltaY < 0 && currentIndexRef.current > 0) {
-          // Scroll up -> return to previous room
-          wheelDebounce = true;
-          const prevIdx = currentIndexRef.current - 1;
-          goToSlide(prevIdx);
-          setTimeout(() => {
-            wheelDebounce = false;
-          }, 650);
-        }
+    // Trigger horizontal swipe if movement is predominantly horizontal and > 45px
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 45) {
+      if (deltaX > 0) {
+        handleNext(); // Swiped left -> next room
       } else {
-        // User is on the last room (Room 5: all rooms viewed!)
-        if (e.deltaY > 0) {
-          // User scrolls down on the last room -> ONLY NOW proceed to the next page!
-          e.preventDefault();
-          onExplore();
-        } else if (e.deltaY < 0) {
-          // User scrolls up on last room -> return to room 4
-          e.preventDefault();
-          e.stopPropagation();
-          if (wheelDebounce || isTransitioningRef.current) return;
-          wheelDebounce = true;
-          goToSlide(total - 2);
-          setTimeout(() => {
-            wheelDebounce = false;
-          }, 650);
-        }
+        handlePrev(); // Swiped right -> prev room
       }
-    };
+    }
+  };
 
-    // Touch handlers for mobile
-    let touchY = 0;
-    const handleTouchStart = (e) => {
-      touchY = e.touches[0].clientY;
-    };
+  // Touch Swipe Handlers for Mobile & Tablet (Horizontal Swipe)
+  const handleTouchStart = (e) => {
+    dragStartX.current = e.touches[0].clientX;
+    dragStartY.current = e.touches[0].clientY;
+  };
 
-    const handleTouchMove = (e) => {
-      const rect = heroEl.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      const isInView = rect.top < windowHeight * 0.65 && rect.bottom > windowHeight * 0.35;
+  const handleTouchEnd = (e) => {
+    const deltaX = dragStartX.current - e.changedTouches[0].clientX;
+    const deltaY = dragStartY.current - e.changedTouches[0].clientY;
 
-      if (!isInView) return;
-
-      const deltaY = touchY - e.touches[0].clientY;
-
-      if (currentIndexRef.current < total - 1) {
-        // Lock mobile scroll while cycling through rooms
-        if (Math.abs(deltaY) > 8) {
-          e.preventDefault();
-        }
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
+      if (deltaX > 0) {
+        handleNext();
+      } else {
+        handlePrev();
       }
-    };
-
-    const handleTouchEnd = (e) => {
-      const rect = heroEl.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      const isInView = rect.top < windowHeight * 0.65 && rect.bottom > windowHeight * 0.35;
-
-      if (!isInView) return;
-
-      const deltaY = touchY - e.changedTouches[0].clientY;
-
-      if (Math.abs(deltaY) > 40) {
-        if (deltaY > 0) {
-          // Swiping up (scrolling down)
-          if (currentIndexRef.current < total - 1) {
-            handleNext();
-          } else {
-            // All rooms viewed -> next page
-            onExplore();
-          }
-        } else if (deltaY < 0 && currentIndexRef.current > 0) {
-          // Swiping down (scrolling up)
-          handlePrev();
-        }
-      }
-    };
-
-    window.addEventListener('wheel', handleWheel, { passive: false });
-    heroEl.addEventListener('touchstart', handleTouchStart, { passive: true });
-    heroEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-    heroEl.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      window.removeEventListener('wheel', handleWheel);
-      heroEl.removeEventListener('touchstart', handleTouchStart);
-      heroEl.removeEventListener('touchmove', handleTouchMove);
-      heroEl.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [total, goToSlide, handleNext, handlePrev, onExplore]);
+    }
+  };
 
   const current = introSlides[currentIndex];
-  const isLastRoom = currentIndex === total - 1;
 
   // 3 preview cards on right (Intro.mp4 style)
   const upcomingCards = [];
@@ -234,7 +148,14 @@ export default function HeroSection({ onExplore, onBook }) {
     <section
       id="hero"
       ref={heroRef}
-      className="relative min-h-screen w-full overflow-hidden bg-charcoal-950 select-none flex flex-col justify-between"
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={() => {
+        isMouseDownRef.current = false;
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="relative min-h-screen w-full overflow-hidden bg-charcoal-950 select-none flex flex-col justify-between cursor-grab active:cursor-grabbing"
     >
       {/* Background Image with Smooth Crossfade & Ken-Burns Zoom */}
       <AnimatePresence mode="popLayout">
@@ -247,7 +168,7 @@ export default function HeroSection({ onExplore, onBook }) {
             opacity: { duration: 0.85, ease: [0.25, 1, 0.5, 1] },
             scale: { duration: 7, ease: 'easeOut' },
           }}
-          className="absolute inset-0 w-full h-full transform-gpu will-change-transform"
+          className="absolute inset-0 w-full h-full transform-gpu will-change-transform pointer-events-none"
         >
           <img
             src={current.image}
@@ -268,7 +189,7 @@ export default function HeroSection({ onExplore, onBook }) {
         <div className="my-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center py-6">
           
           {/* Left Column: Bold Condensed Typography */}
-          <div className="lg:col-span-6 xl:col-span-5 pr-4">
+          <div className="lg:col-span-6 xl:col-span-5 pr-4 pointer-events-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={`content-${current.id}`}
@@ -298,7 +219,7 @@ export default function HeroSection({ onExplore, onBook }) {
                 <div className="pt-3 flex items-center gap-4">
                   <button
                     onClick={onExplore}
-                    className="group inline-flex items-center gap-3 px-6 sm:px-7 py-3 rounded-full bg-charcoal-950/40 hover:bg-white text-white hover:text-charcoal-950 border border-white/40 hover:border-white backdrop-blur-md text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-xl active:scale-95"
+                    className="group inline-flex items-center gap-3 px-6 sm:px-7 py-3 rounded-full bg-charcoal-950/40 hover:bg-white text-white hover:text-charcoal-950 border border-white/40 hover:border-white backdrop-blur-md text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-xl active:scale-95 cursor-pointer"
                   >
                     <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center">
                       <Compass size={12} className="group-hover:rotate-45 transition-transform duration-500" />
@@ -308,7 +229,7 @@ export default function HeroSection({ onExplore, onBook }) {
 
                   <button
                     onClick={onBook}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gold-500 hover:bg-gold-400 text-charcoal-950 text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-lg shadow-gold-500/25 active:scale-95"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gold-500 hover:bg-gold-400 text-charcoal-950 text-xs uppercase tracking-widest font-semibold transition-all duration-300 shadow-lg shadow-gold-500/25 active:scale-95 cursor-pointer"
                   >
                     <span className="font-serif font-bold text-sm leading-none">₹</span>
                     <span>BOOK STAY</span>
@@ -319,7 +240,7 @@ export default function HeroSection({ onExplore, onBook }) {
           </div>
 
           {/* Right Column: Floating Cards Carousel */}
-          <div className="hidden md:flex lg:col-span-6 xl:col-span-7 justify-end items-center overflow-visible pl-4">
+          <div className="hidden md:flex lg:col-span-6 xl:col-span-7 justify-end items-center overflow-visible pl-4 pointer-events-auto">
             <div className="flex items-center gap-4 sm:gap-5">
               {upcomingCards.map((card, idx) => (
                 <motion.div
@@ -327,7 +248,10 @@ export default function HeroSection({ onExplore, onBook }) {
                   initial={{ opacity: 0, x: 60 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: idx * 0.1, ease: 'easeOut' }}
-                  onClick={() => goToSlide(card.originalIndex)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToSlide(card.originalIndex);
+                  }}
                   className="group relative w-44 sm:w-52 md:w-56 lg:w-48 xl:w-56 h-64 sm:h-76 md:h-84 lg:h-76 xl:h-88 rounded-2xl overflow-hidden cursor-pointer shadow-2xl border border-white/25 hover:border-gold-400 transition-all duration-500 hover:-translate-y-2 hover:shadow-gold-500/25 flex-shrink-0"
                 >
                   {/* Card Background Image */}
@@ -357,7 +281,7 @@ export default function HeroSection({ onExplore, onBook }) {
         </div>
 
         {/* Bottom Controls Bar: Circular Arrows + Amber Progress Line + Big Slide Number */}
-        <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-between gap-4 pt-4 border-t border-white/10 pointer-events-auto">
           
           {/* Left: Previous & Next Circular Buttons + Progress Bar */}
           <div className="flex items-center gap-4 sm:gap-6">
@@ -365,17 +289,23 @@ export default function HeroSection({ onExplore, onBook }) {
             {/* Circular Navigation Buttons */}
             <div className="flex items-center gap-2.5">
               <button
-                onClick={handlePrev}
-                aria-label="Previous Slide"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePrev();
+                }}
+                aria-label="Previous Room"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group cursor-pointer"
               >
                 <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
               </button>
 
               <button
-                onClick={handleNext}
-                aria-label="Next Slide"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNext();
+                }}
+                aria-label="Next Room"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-white/40 hover:border-gold-400 text-white hover:text-gold-300 hover:bg-white/10 flex items-center justify-center transition-all duration-300 active:scale-95 group cursor-pointer"
               >
                 <ChevronRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
               </button>
@@ -417,15 +347,18 @@ export default function HeroSection({ onExplore, onBook }) {
 
       </div>
 
-      {/* Floating Indicator */}
+      {/* Floating Scroll Indicator (Natural Page Scroll Down to Rooms) */}
       <motion.div
         animate={{ y: [0, 5, 0] }}
         transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-        onClick={onExplore}
+        onClick={(e) => {
+          e.stopPropagation();
+          onExplore();
+        }}
         className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1 cursor-pointer text-white/60 hover:text-gold-300 transition-colors pointer-events-auto"
       >
         <span className="text-[9px] tracking-[0.3em] uppercase font-light">
-          {isLastRoom ? 'All Rooms Viewed • Scroll To Explore Next Page' : 'Scroll Down For Next Room'}
+          Swipe Horizontally to Explore • Scroll for Rooms
         </span>
         <ArrowDown size={12} className="text-amber-400" />
       </motion.div>
