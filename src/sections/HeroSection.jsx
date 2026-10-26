@@ -59,7 +59,9 @@ export default function HeroSection({ onExplore, onBook }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const heroRef = useRef(null);
-  const wheelLockRef = useRef(false);
+  const currentIndexRef = useRef(0);
+  currentIndexRef.current = currentIndex;
+
   const touchStartY = useRef(0);
   const touchStartX = useRef(0);
 
@@ -71,7 +73,7 @@ export default function HeroSection({ onExplore, onBook }) {
     setCurrentIndex(index);
     setTimeout(() => {
       setIsAnimating(false);
-    }, 600);
+    }, 650);
   }, [isAnimating]);
 
   const handleNext = useCallback(() => {
@@ -84,7 +86,73 @@ export default function HeroSection({ onExplore, onBook }) {
     goToSlide(prevIdx);
   }, [currentIndex, total, goToSlide]);
 
-  // Touch Swipe
+  // Scroll wheel interaction:
+  // When user scrolls on this page, the next room/slide comes automatically!
+  // When all 5 rooms are viewed, scrolling down transitions to the next page (#rooms).
+  useEffect(() => {
+    const heroEl = heroRef.current;
+    if (!heroEl) return;
+
+    let wheelCooldown = false;
+
+    const handleWheel = (e) => {
+      const rect = heroEl.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+
+      // Only handle wheel when the Hero section is visible on screen
+      if (rect.top <= 80 && rect.bottom >= windowHeight - 80) {
+        if (Math.abs(e.deltaY) < 20) return;
+
+        if (wheelCooldown) {
+          // If in cooldown and not on the last slide, prevent jumping away
+          if (currentIndexRef.current < total - 1 || (e.deltaY < 0 && currentIndexRef.current > 0)) {
+            e.preventDefault();
+          }
+          return;
+        }
+
+        if (e.deltaY > 0) {
+          // Scrolling DOWN
+          if (currentIndexRef.current < total - 1) {
+            // Next room comes automatically
+            e.preventDefault();
+            wheelCooldown = true;
+            const nextIdx = currentIndexRef.current + 1;
+            goToSlide(nextIdx);
+            setTimeout(() => {
+              wheelCooldown = false;
+            }, 700);
+          } else {
+            // All rooms are viewed -> proceed to the next page!
+            wheelCooldown = true;
+            onExplore();
+            setTimeout(() => {
+              wheelCooldown = false;
+            }, 1000);
+          }
+        } else if (e.deltaY < 0) {
+          // Scrolling UP
+          if (currentIndexRef.current > 0) {
+            e.preventDefault();
+            wheelCooldown = true;
+            const prevIdx = currentIndexRef.current - 1;
+            goToSlide(prevIdx);
+            setTimeout(() => {
+              wheelCooldown = false;
+            }, 700);
+          }
+          // If on slide 0 and scrolling up, allow natural scroll up to intro video
+        }
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [total, goToSlide, onExplore]);
+
+  // Touch Swipe for mobile/tablet
   const handleTouchStart = (e) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
@@ -94,13 +162,28 @@ export default function HeroSection({ onExplore, onBook }) {
     const deltaY = touchStartY.current - e.changedTouches[0].clientY;
     const deltaX = touchStartX.current - e.changedTouches[0].clientX;
 
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 40) {
+    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 35) {
+      if (deltaY > 0) {
+        // Swiping up -> scroll down
+        if (currentIndex < total - 1) {
+          handleNext();
+        } else {
+          onExplore();
+        }
+      } else {
+        // Swiping down -> scroll up
+        if (currentIndex > 0) {
+          handlePrev();
+        }
+      }
+    } else if (Math.abs(deltaX) > 40) {
       if (deltaX > 0) handleNext();
       else handlePrev();
     }
   };
 
   const current = introSlides[currentIndex];
+  const isLastRoom = currentIndex === total - 1;
 
   // 3 preview cards on right (Intro.mp4 style)
   const upcomingCards = [];
@@ -301,14 +384,16 @@ export default function HeroSection({ onExplore, onBook }) {
 
       </div>
 
-      {/* Floating Scroll Down to Rooms Indicator */}
+      {/* Floating Indicator */}
       <motion.div
         animate={{ y: [0, 5, 0] }}
         transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
         onClick={onExplore}
         className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1 cursor-pointer text-white/60 hover:text-gold-300 transition-colors pointer-events-auto"
       >
-        <span className="text-[9px] tracking-[0.3em] uppercase font-light">Explore Accommodations</span>
+        <span className="text-[9px] tracking-[0.3em] uppercase font-light">
+          {isLastRoom ? 'All Rooms Viewed • Scroll To Explore Rooms' : 'Scroll Down For Next Room'}
+        </span>
         <ArrowDown size={12} className="text-amber-400" />
       </motion.div>
     </section>
