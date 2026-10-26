@@ -59,6 +59,8 @@ export default {
         }
       },
       fontFamily: {
+        oswald: ['"Oswald"', 'sans-serif'],
+        montserrat: ['"Montserrat"', 'sans-serif'],
         serif: ['"Playfair Display"', '"Cormorant Garamond"', 'Georgia', 'serif'],
         cormorant: ['"Cormorant Garamond"', 'serif'],
         sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],

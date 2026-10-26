@@ -52,9 +52,9 @@ export default function Navbar({ onOpenBooking }) {
             : 'bg-gradient-to-b from-charcoal-950/85 via-charcoal-950/40 to-transparent py-4 sm:py-6'
         }`}
       >
-        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-3 lg:gap-4">
-            {/* Left: Brand Logo */}
+        <div className="w-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Brand Logo (Intro.mp4 Style) */}
             <div className="flex-shrink-0">
               <a
                 href="#hero"
@@ -62,52 +62,56 @@ export default function Navbar({ onOpenBooking }) {
                   e.preventDefault();
                   handleNavClick('#hero');
                 }}
-                className="group flex flex-col items-start focus:outline-none"
+                className="group flex items-center gap-2.5 focus:outline-none"
               >
-                <span className="font-serif text-base sm:text-xl xl:text-2xl tracking-[0.2em] sm:tracking-[0.25em] text-cream-50 font-light group-hover:text-gold-300 transition-colors uppercase whitespace-nowrap">
-                  {resortInfo.brandName}
-                </span>
-                <span className="text-[8px] sm:text-[9px] tracking-[0.25em] sm:tracking-[0.3em] uppercase text-gold-400/90 font-medium -mt-0.5 whitespace-nowrap">
-                  {resortInfo.brandSubtitle}
-                </span>
+                <div className="w-8 h-8 rounded-full border border-gold-400/40 flex items-center justify-center text-gold-300 group-hover:border-gold-400 transition-colors">
+                  <Compass size={16} className="group-hover:rotate-45 transition-transform duration-500" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-oswald text-base sm:text-xl tracking-[0.2em] text-white font-medium group-hover:text-gold-300 transition-colors uppercase whitespace-nowrap">
+                    {resortInfo.brandName}
+                  </span>
+                  <span className="text-[8px] tracking-[0.3em] uppercase text-gold-400/80 font-medium -mt-1 whitespace-nowrap">
+                    {resortInfo.brandSubtitle}
+                  </span>
+                </div>
               </a>
             </div>
 
-            {/* Center: Desktop Navigation Links (Centered) */}
-            <nav className="hidden lg:flex items-center justify-center flex-1 mx-2 xl:mx-4 space-x-0.5 xl:space-x-1">
-              {navLinks.map((link) => {
-                const isActive = activeSection === link.href.replace('#', '');
-                return (
-                  <button
-                    key={link.label}
-                    onClick={() => handleNavClick(link.href)}
-                    className={`relative px-1.5 xl:px-2.5 py-1 text-[11px] xl:text-[12px] uppercase tracking-wider whitespace-nowrap transition-colors duration-300 ${
-                      isActive
-                        ? 'text-gold-300 font-medium'
-                        : 'text-cream-100/80 hover:text-white'
-                    }`}
-                  >
-                    {link.label}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeNavIndicator"
-                        className="absolute bottom-0 left-1.5 right-1.5 xl:left-2 xl:right-2 h-[1.5px] bg-gold-400"
-                        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
+            {/* Right: Desktop Navigation Links + Action Button (Intro.mp4 Style) */}
+            <div className="hidden lg:flex items-center gap-6 xl:gap-8">
+              <nav className="flex items-center space-x-1 xl:space-x-2">
+                {navLinks.map((link) => {
+                  const isActive = activeSection === link.href.replace('#', '');
+                  return (
+                    <button
+                      key={link.label}
+                      onClick={() => handleNavClick(link.href)}
+                      className={`relative px-3 py-1 text-[11px] xl:text-[12px] font-sans font-medium uppercase tracking-widest whitespace-nowrap transition-colors duration-300 ${
+                        isActive
+                          ? 'text-gold-300'
+                          : 'text-cream-100/75 hover:text-white'
+                      }`}
+                    >
+                      {link.label}
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeNavIndicator"
+                          className="absolute bottom-0 left-3 right-3 h-[1.5px] bg-amber-400"
+                          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
 
-            {/* Right: Action Button */}
-            <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
               <button
                 onClick={onOpenBooking}
-                className="group relative inline-flex items-center gap-1.5 px-4 xl:px-5 py-2.5 rounded-full overflow-hidden text-xs uppercase tracking-widest font-semibold bg-gold-500 hover:bg-gold-400 text-charcoal-950 shadow-md shadow-gold-500/20 transition-all duration-300 hover:shadow-gold-500/30 whitespace-nowrap"
+                className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs uppercase tracking-widest font-semibold bg-gold-500 hover:bg-gold-400 text-charcoal-950 shadow-md shadow-gold-500/20 transition-all duration-300 active:scale-95 whitespace-nowrap"
               >
-                <span className="font-serif font-bold text-sm leading-none transition-transform group-hover:scale-110">₹</span>
-                <span>Book Your Stay</span>
+                <span className="font-serif font-bold text-sm leading-none">₹</span>
+                <span>Book Stay</span>
               </button>
             </div>
 
