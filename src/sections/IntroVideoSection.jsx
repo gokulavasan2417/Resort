@@ -12,6 +12,7 @@ export default function IntroVideoSection({ onComplete }) {
   const rafRef = useRef(null);
   const wheelCooldownRef = useRef(false);
   const canProceedAfterCompleteRef = useRef(false);
+  const isNavigatingRef = useRef(false);
 
   const [isMuted, setIsMuted] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -30,13 +31,12 @@ export default function IntroVideoSection({ onComplete }) {
 
     isCompletedRef.current = true;
     setIsCompleted(true);
-    document.body.style.overflow = '';
 
-    // Cooldown to prevent scroll momentum from the 4th scroll from immediately jumping away
+    // Brief 350ms cooldown so the 4th scroll momentum settles before allowing transition to next page
     canProceedAfterCompleteRef.current = false;
     setTimeout(() => {
       canProceedAfterCompleteRef.current = true;
-    }, 1200);
+    }, 350);
   };
 
   const animateToStep = (newStep) => {
@@ -95,7 +95,6 @@ export default function IntroVideoSection({ onComplete }) {
         isCompletedRef.current = false;
         setIsCompleted(false);
         canProceedAfterCompleteRef.current = false;
-        document.body.style.overflow = 'hidden';
       }
     }
   };
@@ -109,12 +108,10 @@ export default function IntroVideoSection({ onComplete }) {
     video.playsInline = true;
     video.loop = false; // Never loop - must stay firmly on the last frame!
 
-    if (window.scrollY > 80) {
+    if (window.scrollY > 30) {
       isCompletedRef.current = true;
       setIsCompleted(true);
       canProceedAfterCompleteRef.current = true;
-    } else {
-      document.body.style.overflow = 'hidden';
     }
 
     const handleEnded = () => {
@@ -124,10 +121,17 @@ export default function IntroVideoSection({ onComplete }) {
     video.addEventListener('ended', handleEnded);
 
     const handleWheel = (e) => {
+      // 1. If user has scrolled down into the page (Hero, Rooms, etc.), NEVER intercept!
+      // Allow completely natural, fluid browser scrolling for the rest of the website.
+      if (window.scrollY > 30) {
+        return;
+      }
+
+      // 2. While video is progressing through the 4 steps (steps 0 -> 4)
       if (!isCompletedRef.current) {
         e.preventDefault();
 
-        if (Math.abs(e.deltaY) < 18) return;
+        if (Math.abs(e.deltaY) < 16) return;
         if (wheelCooldownRef.current) return;
 
         if (e.deltaY > 0) {
@@ -138,7 +142,7 @@ export default function IntroVideoSection({ onComplete }) {
             animateToStep(nextStep);
             setTimeout(() => {
               wheelCooldownRef.current = false;
-            }, 600);
+            }, 500);
           }
         } else if (e.deltaY < 0) {
           // Scroll up -> rewind step
@@ -148,22 +152,17 @@ export default function IntroVideoSection({ onComplete }) {
             animateToStep(prevStep);
             setTimeout(() => {
               wheelCooldownRef.current = false;
-            }, 500);
+            }, 400);
           }
         }
       } else {
-        // Video has completed and is staying on the last frame
+        // 3. Video completed and staying on the last frame, user at top (window.scrollY <= 30)
         if (e.deltaY > 0) {
-          // Only proceed after cooldown has elapsed so momentum from 4th scroll doesn't skip the last frame!
-          if (canProceedAfterCompleteRef.current) {
+          if (canProceedAfterCompleteRef.current && !isNavigatingRef.current) {
             handleProceedToLanding();
-          } else {
+          } else if (!canProceedAfterCompleteRef.current) {
             e.preventDefault();
           }
-        } else if (e.deltaY < 0 && window.scrollY <= 10) {
-          // Scroll up rewinds back to step 3
-          e.preventDefault();
-          animateToStep(TOTAL_SCROLLS - 1);
         }
       }
     };
@@ -174,9 +173,11 @@ export default function IntroVideoSection({ onComplete }) {
     };
 
     const handleTouchEnd = (e) => {
+      if (window.scrollY > 30) return;
+
       const deltaY = touchY - e.changedTouches[0].clientY;
       if (!isCompletedRef.current) {
-        if (Math.abs(deltaY) > 35) {
+        if (Math.abs(deltaY) > 30) {
           if (deltaY > 0 && scrollStepRef.current < TOTAL_SCROLLS) {
             animateToStep(scrollStepRef.current + 1);
           } else if (deltaY < 0 && scrollStepRef.current > 0) {
@@ -184,7 +185,7 @@ export default function IntroVideoSection({ onComplete }) {
           }
         }
       } else {
-        if (deltaY > 35 && canProceedAfterCompleteRef.current) {
+        if (deltaY > 30 && canProceedAfterCompleteRef.current && !isNavigatingRef.current) {
           handleProceedToLanding();
         }
       }
@@ -195,7 +196,6 @@ export default function IntroVideoSection({ onComplete }) {
     window.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      document.body.style.overflow = '';
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       video.removeEventListener('ended', handleEnded);
       window.removeEventListener('wheel', handleWheel);
@@ -212,10 +212,14 @@ export default function IntroVideoSection({ onComplete }) {
   };
 
   const handleProceedToLanding = () => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
     isCompletedRef.current = true;
     setIsCompleted(true);
-    document.body.style.overflow = '';
     onComplete();
+    setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 1000);
   };
 
   return (

@@ -132,6 +132,18 @@ export default function HeroSection({ onExplore, onBook }) {
     }
   };
 
+  // Trackpad Horizontal Gestures (Swiping left/right changes slides, up/down scrolls naturally)
+  const handleWheel = (e) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 30) {
+      if (isTransitioningRef.current) return;
+      if (e.deltaX > 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
+    }
+  };
+
   const current = introSlides[currentIndex];
 
   // 3 preview cards on right (Intro.mp4 style)
@@ -148,6 +160,7 @@ export default function HeroSection({ onExplore, onBook }) {
     <section
       id="hero"
       ref={heroRef}
+      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={() => {
