@@ -27,7 +27,8 @@ export default function IntroVideoSection({ onComplete }) {
 
     const duration = video.duration && !isNaN(video.duration) ? video.duration : 10.0;
     // Stay directly on the final frame (duration - 0.05s) displaying the Happening Luxury Villa emblem
-    video.currentTime = Math.max(0, duration - 0.05);
+    const lastVisibleFrame = Math.min(9.8, Math.max(0, duration - 0.7));
+    video.currentTime = lastVisibleFrame;
 
     isCompletedRef.current = true;
     setIsCompleted(true);
@@ -46,11 +47,8 @@ export default function IntroVideoSection({ onComplete }) {
 
     const totalDuration = video.duration && !isNaN(video.duration) ? video.duration : 10.0;
     
-    // Step 4 targets the exact last frame (duration - 0.05s)
-    const target =
-      newStep >= TOTAL_SCROLLS
-        ? Math.max(0, totalDuration - 0.05)
-        : (newStep / TOTAL_SCROLLS) * totalDuration;
+    const maxActiveTime = Math.min(9.8, Math.max(0, totalDuration - 0.7));
+    const target = (newStep / TOTAL_SCROLLS) * maxActiveTime;
 
     targetTimeRef.current = target;
     scrollStepRef.current = newStep;
