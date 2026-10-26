@@ -15,16 +15,10 @@ export const resortInfo = {
 
 export const navLinks = [
   { label: "Home", href: "#hero" },
-  { label: "About Us", href: "#about" },
-  { label: "Stay", href: "#rooms" },
-  { label: "Pool", href: "#pool" },
-  { label: "Dining", href: "#dining" },
-  { label: "Wellness", href: "#wellness" },
+  { label: "Rooms", href: "#rooms" },
   { label: "Family", href: "#family" },
-  { label: "Experiences", href: "#experiences" },
-  { label: "Facilities", href: "#facilities" },
-  { label: "Gallery", href: "#gallery" },
   { label: "Contact", href: "#contact" },
+  { label: "About Us", href: "#about" },
 ];
 
 export const roomsData = [

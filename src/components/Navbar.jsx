@@ -17,12 +17,12 @@ export default function Navbar({ onOpenBooking }) {
       }
 
       // Track active section
-      const sections = ['hero', 'about', 'rooms', 'pool', 'dining', 'wellness', 'family', 'experiences', 'facilities', 'gallery', 'contact'];
+      const sections = ['hero', 'rooms', 'family', 'contact', 'about'];
       for (const sectionId of sections) {
         const el = document.getElementById(sectionId);
         if (el) {
           const rect = el.getBoundingClientRect();
-          if (rect.top <= 180 && rect.bottom >= 180) {
+          if (rect.top <= 200 && rect.bottom >= 150) {
             setActiveSection(sectionId);
             break;
           }

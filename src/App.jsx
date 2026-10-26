@@ -1,25 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import IntroVideo from './components/IntroVideo';
+import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import HeroSection from './sections/HeroSection';
-import AboutSection from './sections/AboutSection';
 import RoomsSection from './sections/RoomsSection';
-import PoolSection from './sections/PoolSection';
 import ActivitiesSection from './sections/ActivitiesSection';
-import DiningSection from './sections/DiningSection';
-import WellnessSection from './sections/WellnessSection';
-import FacilitiesSection from './sections/FacilitiesSection';
-import ExperiencesSection from './sections/ExperiencesSection';
-import GallerySection from './sections/GallerySection';
-import TestimonialsSection from './sections/TestimonialsSection';
-import BookingSection from './sections/BookingSection';
 import ContactSection from './sections/ContactSection';
+import AboutSection from './sections/AboutSection';
+import BookingModal from './components/BookingModal';
 
 export default function App() {
-  // Show intro video once per visit
-  const [showIntro, setShowIntro] = useState(true);
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [preselectedRoom, setPreselectedRoom] = useState(null);
 
   const scrollToSection = (id) => {
@@ -31,62 +21,52 @@ export default function App() {
 
   const handleBookRoom = (room) => {
     setPreselectedRoom(room);
-    scrollToSection('booking');
+    setIsBookingOpen(true);
   };
 
   const handleOpenBooking = () => {
-    scrollToSection('booking');
+    setPreselectedRoom(null);
+    setIsBookingOpen(true);
   };
 
   return (
     <div className="min-h-screen bg-cream-100 text-charcoal-900 font-sans selection:bg-gold-500 selection:text-white">
-      {/* Cinematic Intro Video Overlay */}
-      <AnimatePresence mode="wait">
-        {showIntro && (
-          <IntroVideo onComplete={() => setShowIntro(false)} />
-        )}
-      </AnimatePresence>
+      {/* Fixed Luxury Navigation Header */}
+      <Navbar onOpenBooking={handleOpenBooking} />
 
-      {/* Main Website Experience */}
-      <div className={`transition-opacity duration-1000 ${showIntro ? 'opacity-0' : 'opacity-100'}`}>
-        <Navbar onOpenBooking={handleOpenBooking} />
+      {/* Main Website Experience with Smooth Scroll Flow */}
+      <main>
+        {/* 1. Landing Page (Scroll Animation based on Intro.mp4 reference) */}
+        <HeroSection
+          onExplore={() => scrollToSection('rooms')}
+          onBook={handleOpenBooking}
+        />
 
-        <main>
-          <HeroSection
-            onExplore={() => scrollToSection('about')}
-            onBook={handleOpenBooking}
-          />
+        {/* 2. Rooms Page (Architectural Scroll Experience based on Rooms.mp4 reference) */}
+        <RoomsSection onBookRoom={handleBookRoom} />
 
-          <AboutSection onExploreRooms={() => scrollToSection('rooms')} />
+        {/* 3. Family Page (Family Moments, Young Rangers, Cottages & Stargazing) */}
+        <ActivitiesSection
+          onInquireFamily={() => scrollToSection('contact')}
+          onBookFamily={() => handleBookRoom(null)}
+        />
 
-          <RoomsSection onBookRoom={handleBookRoom} />
+        {/* 4. Contact Page (Direct Sanctuary Enquiries, Map, Concierge & FAQs) */}
+        <ContactSection />
 
-          <PoolSection onBookStay={handleOpenBooking} />
+        {/* 5. About Us Last Page (Sanctuary Philosophy, 2,400-Acre Wilderness & Heritage) */}
+        <AboutSection onExploreRooms={() => scrollToSection('rooms')} />
+      </main>
 
-          <ActivitiesSection onInquireFamily={() => scrollToSection('contact')} />
+      {/* Footer */}
+      <Footer onNavClick={(href) => scrollToSection(href)} />
 
-          <DiningSection onReserveTable={() => scrollToSection('contact')} />
-
-          <WellnessSection onInquireWellness={() => scrollToSection('contact')} />
-
-          <FacilitiesSection />
-
-          <ExperiencesSection onBookExperience={() => scrollToSection('contact')} />
-
-          <GallerySection />
-
-          <TestimonialsSection />
-
-          <BookingSection
-            preselectedRoom={preselectedRoom}
-            onClosePreselected={() => setPreselectedRoom(null)}
-          />
-
-          <ContactSection />
-        </main>
-
-        <Footer onNavClick={(href) => scrollToSection(href)} />
-      </div>
+      {/* Global Luxury Reservation Drawer / Modal */}
+      <BookingModal
+        isOpen={isBookingOpen}
+        onClose={() => setIsBookingOpen(false)}
+        preselectedRoom={preselectedRoom}
+      />
     </div>
   );
 }
