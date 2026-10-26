@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import IntroVideoSection from './sections/IntroVideoSection';
 import HeroSection from './sections/HeroSection';
 import RoomsSection from './sections/RoomsSection';
 import ActivitiesSection from './sections/ActivitiesSection';
@@ -31,37 +32,40 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-cream-100 text-charcoal-900 font-sans selection:bg-gold-500 selection:text-white">
-      {/* Fixed Luxury Navigation Header */}
+      {/* Luxury Navigation Header */}
       <Navbar onOpenBooking={handleOpenBooking} />
 
-      {/* Main Website Experience with Smooth Scroll Flow */}
+      {/* Main Experience Flow */}
       <main>
-        {/* 1. Landing Page (Scroll Animation based on Intro.mp4 reference) */}
+        {/* 1. Cinematic Intro Video (Scroll-Controlled Main-8.mp4 Playback) */}
+        <IntroVideoSection onComplete={() => scrollToSection('hero')} />
+
+        {/* 2. Landing Page (Destination Showcase, Bold Typography & Floating Preview Cards) */}
         <HeroSection
           onExplore={() => scrollToSection('rooms')}
           onBook={handleOpenBooking}
         />
 
-        {/* 2. Rooms Page (Architectural Scroll Experience based on Rooms.mp4 reference) */}
+        {/* 3. Rooms Page (Full Architectural Journey & 4 Luxury Residences) */}
         <RoomsSection onBookRoom={handleBookRoom} />
 
-        {/* 3. Family Page (Family Moments, Young Rangers, Cottages & Stargazing) */}
+        {/* 4. Family Page (Young Rangers Nature Lab, Canopy Adventure & Family Cottage) */}
         <ActivitiesSection
           onInquireFamily={() => scrollToSection('contact')}
           onBookFamily={() => handleBookRoom(null)}
         />
 
-        {/* 4. Contact Page (Direct Sanctuary Enquiries, Map, Concierge & FAQs) */}
+        {/* 5. Contact Page (Direct Sanctuary Enquiries, Coordinates, Concierge & FAQs) */}
         <ContactSection />
 
-        {/* 5. About Us Last Page (Sanctuary Philosophy, 2,400-Acre Wilderness & Heritage) */}
+        {/* 6. About Us Last Page (Sanctuary Philosophy, 2,400-Acre Wilderness Reserve) */}
         <AboutSection onExploreRooms={() => scrollToSection('rooms')} />
       </main>
 
       {/* Footer */}
       <Footer onNavClick={(href) => scrollToSection(href)} />
 
-      {/* Global Luxury Reservation Drawer / Modal */}
+      {/* Luxury Reservation Drawer / Modal */}
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
