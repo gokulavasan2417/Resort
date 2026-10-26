@@ -1,132 +1,140 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Volume2,
-  VolumeX,
-  FastForward,
-  Play,
-  Pause,
-  ArrowDown,
-  Sparkles,
-  Compass,
-} from 'lucide-react';
-import { resortInfo } from '../data/resortData';
+import { Volume2, VolumeX, FastForward, ArrowDown } from 'lucide-react';
 
-export default function HeroSection({ onExplore, onBook }) {
-  const containerRef = useRef(null);
+export default function HeroSection({ onExplore }) {
   const videoRef = useRef(null);
-  const scrollTimeoutRef = useRef(null);
+  const pauseTimeoutRef = useRef(null);
+  const isCompletedRef = useRef(false);
 
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [currentTimeStr, setCurrentTimeStr] = useState('00:00');
-  const [durationStr, setDurationStr] = useState('00:10');
-  const [hasScrolled, setHasScrolled] = useState(false);
-  const [isEnded, setIsEnded] = useState(false);
-
-  // Format seconds to mm:ss
-  const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '00:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
+  const [hasStarted, setHasStarted] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
-    const container = containerRef.current;
-    if (!video || !container) return;
+    if (!video) return;
 
-    // Set duration when metadata loads
-    const handleLoadedMetadata = () => {
-      setDurationStr(formatTime(video.duration));
-    };
-
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    if (video.duration) {
-      setDurationStr(formatTime(video.duration));
+    // If user loaded the page already scrolled down, allow normal scroll
+    if (window.scrollY > 80) {
+      isCompletedRef.current = true;
+      setIsCompleted(true);
     }
 
-    // Update progress bar
     const handleTimeUpdate = () => {
-      if (video.duration) {
-        const pct = (video.currentTime / video.duration) * 100;
-        setVideoProgress(pct);
-        setCurrentTimeStr(formatTime(video.currentTime));
+      // When video reaches within 0.3s of the end (the Happening Villa logo frame)
+      if (video.duration && video.currentTime >= video.duration - 0.3) {
+        video.pause();
+        isCompletedRef.current = true;
+        setIsCompleted(true);
       }
     };
-    video.addEventListener('timeupdate', handleTimeUpdate);
 
     const handleEnded = () => {
-      setIsPlaying(false);
-      setIsEnded(true);
+      isCompletedRef.current = true;
+      setIsCompleted(true);
     };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('ended', handleEnded);
 
-    // Scroll-driven playback:
-    // When user scrolls, video plays.
-    // When user stops scrolling (180ms inactivity), video pauses.
-    // When user scrolls again, video resumes playing.
-    const handleScrollOrWheel = () => {
-      const rect = container.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
+    // Scroll wheel handler:
+    // When at the top of the page and video has not completed:
+    // Intercept scroll so page DOES NOT move to the next page!
+    // Instead: scrolling plays the video forward!
+    // Stopping scroll pauses the video!
+    // When video completes, normal page scroll is restored to move to Page 2.
+    const handleWheel = (e) => {
+      // If user is at top of page and video hasn't finished:
+      if (window.scrollY <= 15 && !isCompletedRef.current) {
+        if (e.deltaY > 0) {
+          // User scrolling down: lock page scroll and play video
+          e.preventDefault();
+          setHasStarted(true);
 
-      // Only respond when intro container is active/visible in viewport
-      if (rect.bottom > 100 && rect.top <= 0) {
-        setHasScrolled(true);
-
-        // Play video while scrolling
-        if (video.paused && !video.ended) {
-          video
-            .play()
-            .then(() => {
-              setIsPlaying(true);
-            })
-            .catch(() => {
-              // Silently handle browser autoplay policy
-            });
-        }
-
-        // Clear existing pause timeout
-        if (scrollTimeoutRef.current) {
-          clearTimeout(scrollTimeoutRef.current);
-        }
-
-        // Pause as soon as user stops scrolling (180ms debounce)
-        scrollTimeoutRef.current = setTimeout(() => {
-          if (video && !video.paused) {
-            video.pause();
-            setIsPlaying(false);
+          // Dynamic playback rate based on scroll intensity
+          if (Math.abs(e.deltaY) > 80) {
+            video.playbackRate = 1.4;
+          } else if (Math.abs(e.deltaY) > 30) {
+            video.playbackRate = 1.15;
+          } else {
+            video.playbackRate = 1.0;
           }
-        }, 180);
-      } else if (rect.top > 0) {
-        // User scrolled back to top
-        if (!video.paused) {
+
+          if (video.paused && !video.ended) {
+            video.play().catch(() => {});
+          }
+
+          // Clear existing pause timer
+          if (pauseTimeoutRef.current) {
+            clearTimeout(pauseTimeoutRef.current);
+          }
+
+          // Pause video when scrolling stops (200ms inactivity)
+          pauseTimeoutRef.current = setTimeout(() => {
+            if (video && !video.paused) {
+              video.pause();
+            }
+          }, 200);
+        } else if (e.deltaY < 0) {
+          // User scrolling up: gently rewind video
+          e.preventDefault();
           video.pause();
-          setIsPlaying(false);
-        }
-      } else if (rect.bottom <= 0) {
-        // User scrolled completely past intro
-        if (!video.paused) {
-          video.pause();
-          setIsPlaying(false);
+          video.currentTime = Math.max(0, video.currentTime - 0.35);
+          if (isCompletedRef.current) {
+            isCompletedRef.current = false;
+            setIsCompleted(false);
+          }
         }
       }
     };
 
-    window.addEventListener('scroll', handleScrollOrWheel, { passive: true });
-    window.addEventListener('wheel', handleScrollOrWheel, { passive: true });
-    window.addEventListener('touchmove', handleScrollOrWheel, { passive: true });
+    // Touch handling for mobile
+    let touchStartY = 0;
+    const handleTouchStart = (e) => {
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e) => {
+      if (window.scrollY <= 15 && !isCompletedRef.current) {
+        const deltaY = touchStartY - e.touches[0].clientY;
+        if (deltaY > 5) {
+          // Swiping up to scroll down
+          e.preventDefault();
+          setHasStarted(true);
+
+          if (video.paused && !video.ended) {
+            video.play().catch(() => {});
+          }
+
+          if (pauseTimeoutRef.current) {
+            clearTimeout(pauseTimeoutRef.current);
+          }
+
+          pauseTimeoutRef.current = setTimeout(() => {
+            if (video && !video.paused) {
+              video.pause();
+            }
+          }, 220);
+        } else if (deltaY < -5) {
+          e.preventDefault();
+          video.pause();
+          video.currentTime = Math.max(0, video.currentTime - 0.3);
+        }
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('ended', handleEnded);
-      window.removeEventListener('scroll', handleScrollOrWheel);
-      window.removeEventListener('wheel', handleScrollOrWheel);
-      window.removeEventListener('touchmove', handleScrollOrWheel);
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
     };
   }, []);
 
@@ -137,7 +145,9 @@ export default function HeroSection({ onExplore, onBook }) {
     }
   };
 
-  const handleSkipToRooms = () => {
+  const handleSkip = () => {
+    isCompletedRef.current = true;
+    setIsCompleted(true);
     const roomsEl = document.getElementById('rooms');
     if (roomsEl) {
       roomsEl.scrollIntoView({ behavior: 'smooth' });
@@ -146,176 +156,90 @@ export default function HeroSection({ onExplore, onBook }) {
     }
   };
 
-  const handleReplay = () => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      setIsEnded(false);
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  };
-
   return (
     <section
       id="hero"
-      ref={containerRef}
-      className="relative min-h-[220vh] bg-charcoal-950 select-none"
+      className="relative h-screen w-full overflow-hidden bg-charcoal-950 select-none"
     >
-      {/* Sticky Fullscreen Video Stage */}
-      <div className="sticky top-0 h-screen w-full overflow-hidden bg-charcoal-950 flex flex-col justify-between">
-        
-        {/* Main Background Video */}
-        <video
-          ref={videoRef}
-          src="/videos/Main-8.mp4"
-          className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform"
-          playsInline
-          muted={isMuted}
-          preload="auto"
-        />
+      {/* Fullscreen Cinematic Main-8 Video */}
+      <video
+        ref={videoRef}
+        src="/videos/Main-8.mp4"
+        className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform"
+        playsInline
+        muted={isMuted}
+        preload="auto"
+      />
 
-        {/* Cinematic Vignette Overlays for Maximum Legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/90 via-transparent to-charcoal-950/60 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-r from-charcoal-950/60 via-transparent to-charcoal-950/60 pointer-events-none" />
+      {/* Subtle Cinematic Vignette for Ambient Contrast */}
+      <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/70 via-transparent to-charcoal-950/40 pointer-events-none" />
 
-        {/* Top Floating Controls Bar */}
-        <div className="relative z-20 w-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20 pt-24 sm:pt-28 flex items-center justify-between">
-          
-          {/* Subtle Tag */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-charcoal-950/70 backdrop-blur-md border border-gold-400/30 text-gold-300 text-[10px] sm:text-xs font-medium tracking-[0.25em] uppercase">
-            <Sparkles size={11} className="text-gold-400" />
-            <span>Cinematic Sanctuary Intro</span>
-          </div>
+      {/* Top Controls: Sound & Skip Button (Clean, unobtrusive) */}
+      <div className="absolute top-24 right-6 sm:right-12 z-20 flex items-center gap-3">
+        <button
+          onClick={toggleSound}
+          aria-label={isMuted ? 'Unmute video audio' : 'Mute video audio'}
+          className="p-2.5 rounded-full bg-charcoal-950/60 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md transition-all duration-300 active:scale-95 shadow-lg"
+        >
+          {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+        </button>
 
-          {/* Sound & Skip Controls */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleSound}
-              aria-label={isMuted ? 'Unmute video audio' : 'Mute video audio'}
-              className="p-2.5 rounded-full bg-charcoal-950/70 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md transition-all duration-300 active:scale-95 shadow-lg"
-            >
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
-
-            <button
-              onClick={handleSkipToRooms}
-              className="group inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full bg-charcoal-950/70 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md text-xs uppercase tracking-widest font-medium transition-all duration-300 active:scale-95 shadow-lg"
-            >
-              <span>Skip to Rooms</span>
-              <FastForward size={14} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
-
-        </div>
-
-        {/* Center: Interactive Scroll Guidance Cue */}
-        <div className="relative z-20 my-auto text-center px-4 pointer-events-none">
-          <AnimatePresence>
-            {!hasScrolled && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.8 }}
-                className="inline-flex flex-col items-center gap-3 p-6 sm:p-8 rounded-3xl bg-charcoal-950/75 backdrop-blur-xl border border-gold-400/30 shadow-2xl max-w-md mx-auto"
-              >
-                <div className="w-12 h-12 rounded-full border border-gold-400/40 flex items-center justify-center text-gold-300 animate-pulse">
-                  <Play size={20} className="fill-gold-300 ml-0.5" />
-                </div>
-                <div>
-                  <h2 className="font-serif text-xl sm:text-2xl text-cream-50 font-normal">
-                    Scroll To Play Cinematic Intro
-                  </h2>
-                  <p className="text-xs text-sand-300 font-light mt-1.5 leading-relaxed">
-                    Scroll down to explore. Stopping your scroll pauses the cinematic; scrolling resumes playback.
-                  </p>
-                </div>
-                <motion.div
-                  animate={{ y: [0, 6, 0] }}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="mt-1 flex items-center gap-1.5 text-[11px] font-mono text-gold-400 uppercase tracking-widest"
-                >
-                  <ArrowDown size={14} />
-                  <span>Scroll Down</span>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Replay Option when Ended */}
-          {isEnded && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="inline-flex flex-col items-center gap-4 p-6 rounded-3xl bg-charcoal-950/80 backdrop-blur-xl border border-gold-400/40 shadow-2xl pointer-events-auto"
-            >
-              <h3 className="font-serif text-xl text-cream-50">
-                Welcome to {resortInfo.brandName}
-              </h3>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSkipToRooms}
-                  className="px-6 py-3 rounded-full bg-gold-500 hover:bg-gold-400 text-charcoal-950 font-bold text-xs uppercase tracking-widest transition-all shadow-lg"
-                >
-                  Proceed to Rooms (Page 2)
-                </button>
-                <button
-                  onClick={handleReplay}
-                  className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs uppercase tracking-wider font-medium transition-all"
-                >
-                  Replay Intro
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </div>
-
-        {/* Bottom Bar: Live Playback Status & Video Progress Track */}
-        <div className="relative z-20 w-full max-w-[1700px] mx-auto px-6 sm:px-12 lg:px-20 pb-8 sm:pb-10">
-          <div className="p-4 sm:p-5 rounded-2xl bg-charcoal-950/80 backdrop-blur-xl border border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xl">
-            
-            {/* Status indicator: Playing on Scroll / Paused */}
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  isPlaying
-                    ? 'bg-emerald-400 shadow-lg shadow-emerald-400/50 animate-ping'
-                    : 'bg-amber-400/80'
-                }`}
-              />
-              <span className="font-mono text-xs uppercase tracking-wider text-cream-100 font-medium">
-                {isPlaying ? 'PLAYING ON SCROLL' : 'PAUSED • SCROLL TO ADVANCE'}
-              </span>
-            </div>
-
-            {/* Video Progress Line */}
-            <div className="flex-1 max-w-md sm:mx-6 flex items-center gap-3">
-              <span className="font-mono text-[10px] text-sand-400 w-10 text-right">
-                {currentTimeStr}
-              </span>
-              <div className="flex-1 h-[3px] bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-gold-500 to-amber-300 transition-all duration-100"
-                  style={{ width: `${videoProgress}%` }}
-                />
-              </div>
-              <span className="font-mono text-[10px] text-sand-400 w-10">
-                {durationStr}
-              </span>
-            </div>
-
-            {/* Action to proceed to page 2 */}
-            <button
-              onClick={handleSkipToRooms}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full bg-gold-500/20 hover:bg-gold-500 text-gold-300 hover:text-charcoal-950 border border-gold-400/40 text-xs font-semibold uppercase tracking-wider transition-all duration-300"
-            >
-              <span>Explore Page 2: Rooms</span>
-              <ArrowDown size={14} />
-            </button>
-
-          </div>
-        </div>
-
+        <button
+          onClick={handleSkip}
+          className="group inline-flex items-center gap-2 px-4 py-2 rounded-full bg-charcoal-950/60 hover:bg-gold-500 hover:text-charcoal-950 text-white border border-white/20 hover:border-gold-400 backdrop-blur-md text-[11px] uppercase tracking-widest font-medium transition-all duration-300 active:scale-95 shadow-lg"
+        >
+          <span>Skip to Rooms</span>
+          <FastForward size={13} className="group-hover:translate-x-0.5 transition-transform" />
+        </button>
       </div>
+
+      {/* Initial Subtle Scroll Cue (Fades out once user begins scrolling) */}
+      <AnimatePresence>
+        {!hasStarted && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 15 }}
+            transition={{ duration: 0.6 }}
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2"
+          >
+            <span className="text-[10px] tracking-[0.35em] uppercase text-cream-100/90 font-light drop-shadow-md">
+              Scroll to Play
+            </span>
+            <motion.div
+              animate={{ y: [0, 6, 0] }}
+              transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+              className="w-5 h-8 rounded-full border border-white/40 flex items-start justify-center p-1"
+            >
+              <div className="w-1 h-2 bg-gold-400 rounded-full" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Completion Cue: Appears when video finishes on the Happening Villa logo */}
+      <AnimatePresence>
+        {isCompleted && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            onClick={handleSkip}
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 cursor-pointer flex flex-col items-center gap-2 group"
+          >
+            <span className="text-xs uppercase tracking-[0.3em] text-gold-300 group-hover:text-white transition-colors font-medium drop-shadow-lg">
+              Scroll Down To Explore Rooms
+            </span>
+            <motion.div
+              animate={{ y: [0, 8, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+              className="p-2 rounded-full bg-charcoal-950/70 border border-gold-400/50 text-gold-300 group-hover:bg-gold-500 group-hover:text-charcoal-950 transition-all shadow-xl"
+            >
+              <ArrowDown size={16} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
