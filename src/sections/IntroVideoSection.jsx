@@ -11,37 +11,53 @@ export default function IntroVideoSection({ onComplete }) {
   const targetTimeRef = useRef(0);
   const rafRef = useRef(null);
   const wheelCooldownRef = useRef(false);
+  const canProceedAfterCompleteRef = useRef(false);
 
-  const [scrollStep, setScrollStep] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
-  const [hasStarted, setHasStarted] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
 
-  // Play smoothly to target time
+  // Safely freeze on the exact last frame of the video
+  const freezeOnLastFrame = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    video.pause();
+
+    const duration = video.duration && !isNaN(video.duration) ? video.duration : 10.0;
+    // Stay directly on the final frame (duration - 0.05s) displaying the Happening Luxury Villa emblem
+    video.currentTime = Math.max(0, duration - 0.05);
+
+    isCompletedRef.current = true;
+    setIsCompleted(true);
+    document.body.style.overflow = '';
+
+    // Cooldown to prevent scroll momentum from the 4th scroll from immediately jumping away
+    canProceedAfterCompleteRef.current = false;
+    setTimeout(() => {
+      canProceedAfterCompleteRef.current = true;
+    }, 1200);
+  };
+
   const animateToStep = (newStep) => {
     const video = videoRef.current;
     if (!video) return;
 
     const totalDuration = video.duration && !isNaN(video.duration) ? video.duration : 10.0;
     
-    // Step 4 targets the exact last frame (duration - 0.05s) to stay on the final Happening Villa emblem
+    // Step 4 targets the exact last frame (duration - 0.05s)
     const target =
-      newStep === TOTAL_SCROLLS
+      newStep >= TOTAL_SCROLLS
         ? Math.max(0, totalDuration - 0.05)
         : (newStep / TOTAL_SCROLLS) * totalDuration;
 
     targetTimeRef.current = target;
     scrollStepRef.current = newStep;
-    setScrollStep(newStep);
-
-    if (newStep > 0) {
-      setHasStarted(true);
-    }
 
     if (newStep >= scrollStepRef.current) {
       // Play forward toward target checkpoint
       video.muted = true;
-      video.playbackRate = 1.35; // Natural, cinematic playback speed
+      video.playbackRate = 1.35;
 
       const playPromise = video.play();
       if (playPromise !== undefined) {
@@ -57,13 +73,11 @@ export default function IntroVideoSection({ onComplete }) {
 
         // When reached target or end of video
         if (video.currentTime >= targetTimeRef.current || video.ended) {
-          video.pause();
-          video.currentTime = targetTimeRef.current; // Freeze on exact frame
-
-          if (newStep === TOTAL_SCROLLS) {
-            isCompletedRef.current = true;
-            setIsCompleted(true);
-            document.body.style.overflow = ''; // Unlock body scroll
+          if (newStep >= TOTAL_SCROLLS) {
+            freezeOnLastFrame();
+          } else {
+            video.pause();
+            video.currentTime = targetTimeRef.current;
           }
         } else {
           rafRef.current = requestAnimationFrame(checkTime);
@@ -80,6 +94,7 @@ export default function IntroVideoSection({ onComplete }) {
       if (isCompletedRef.current) {
         isCompletedRef.current = false;
         setIsCompleted(false);
+        canProceedAfterCompleteRef.current = false;
         document.body.style.overflow = 'hidden';
       }
     }
@@ -89,21 +104,25 @@ export default function IntroVideoSection({ onComplete }) {
     const video = videoRef.current;
     if (!video) return;
 
-    // Explicitly guarantee DOM muted status for browser autoplay compliance
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
+    video.loop = false; // Never loop - must stay firmly on the last frame!
 
-    // If loaded while scrolled, allow page scroll; otherwise lock until 4 scrolls complete
     if (window.scrollY > 80) {
       isCompletedRef.current = true;
       setIsCompleted(true);
+      canProceedAfterCompleteRef.current = true;
     } else {
       document.body.style.overflow = 'hidden';
     }
 
-    // Wheel event handler:
-    // Exactly 4 scrolls down advance through the video to the final frame!
+    const handleEnded = () => {
+      freezeOnLastFrame();
+    };
+
+    video.addEventListener('ended', handleEnded);
+
     const handleWheel = (e) => {
       if (!isCompletedRef.current) {
         e.preventDefault();
@@ -112,7 +131,7 @@ export default function IntroVideoSection({ onComplete }) {
         if (wheelCooldownRef.current) return;
 
         if (e.deltaY > 0) {
-          // Scroll down -> advance 1 step (out of 4)
+          // Scroll down -> advance step (1 to 4)
           if (scrollStepRef.current < TOTAL_SCROLLS) {
             wheelCooldownRef.current = true;
             const nextStep = scrollStepRef.current + 1;
@@ -122,7 +141,7 @@ export default function IntroVideoSection({ onComplete }) {
             }, 600);
           }
         } else if (e.deltaY < 0) {
-          // Scroll up -> rewind 1 step
+          // Scroll up -> rewind step
           if (scrollStepRef.current > 0) {
             wheelCooldownRef.current = true;
             const prevStep = scrollStepRef.current - 1;
@@ -135,28 +154,28 @@ export default function IntroVideoSection({ onComplete }) {
       } else {
         // Video has completed and is staying on the last frame
         if (e.deltaY > 0) {
-          // Scrolling down now proceeds to the Landing Page
-          handleProceedToLanding();
+          // Only proceed after cooldown has elapsed so momentum from 4th scroll doesn't skip the last frame!
+          if (canProceedAfterCompleteRef.current) {
+            handleProceedToLanding();
+          } else {
+            e.preventDefault();
+          }
         } else if (e.deltaY < 0 && window.scrollY <= 10) {
-          // Scrolling up rewinds back to step 3
+          // Scroll up rewinds back to step 3
           e.preventDefault();
-          isCompletedRef.current = false;
-          setIsCompleted(false);
-          document.body.style.overflow = 'hidden';
           animateToStep(TOTAL_SCROLLS - 1);
         }
       }
     };
 
-    // Touch handlers for mobile
     let touchY = 0;
     const handleTouchStart = (e) => {
       touchY = e.touches[0].clientY;
     };
 
     const handleTouchEnd = (e) => {
+      const deltaY = touchY - e.changedTouches[0].clientY;
       if (!isCompletedRef.current) {
-        const deltaY = touchY - e.changedTouches[0].clientY;
         if (Math.abs(deltaY) > 35) {
           if (deltaY > 0 && scrollStepRef.current < TOTAL_SCROLLS) {
             animateToStep(scrollStepRef.current + 1);
@@ -165,8 +184,7 @@ export default function IntroVideoSection({ onComplete }) {
           }
         }
       } else {
-        const deltaY = touchY - e.changedTouches[0].clientY;
-        if (deltaY > 35) {
+        if (deltaY > 35 && canProceedAfterCompleteRef.current) {
           handleProceedToLanding();
         }
       }
@@ -179,6 +197,7 @@ export default function IntroVideoSection({ onComplete }) {
     return () => {
       document.body.style.overflow = '';
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      video.removeEventListener('ended', handleEnded);
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
@@ -243,47 +262,6 @@ export default function IntroVideoSection({ onComplete }) {
           <FastForward size={13} className="group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
-
-      {/* 4-Scrolls Progress Indicator (Bottom Left) */}
-      <div className="absolute bottom-10 left-6 sm:left-12 z-20 flex items-center gap-2 pointer-events-none">
-        {[1, 2, 3, 4].map((stepNum) => (
-          <div
-            key={stepNum}
-            className={`h-1.5 rounded-full transition-all duration-500 ${
-              scrollStep >= stepNum
-                ? 'w-8 bg-gold-400 shadow-md shadow-gold-400/50'
-                : 'w-3 bg-white/30'
-            }`}
-          />
-        ))}
-        <span className="text-[10px] font-mono tracking-widest text-gold-300/80 ml-2">
-          {scrollStep}/4 SCROLLS
-        </span>
-      </div>
-
-      {/* Initial Gentle Scroll Cue */}
-      <AnimatePresence>
-        {!hasStarted && (
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 15 }}
-            transition={{ duration: 0.6 }}
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2"
-          >
-            <span className="text-[10px] tracking-[0.35em] uppercase text-cream-100/90 font-light drop-shadow-md">
-              Scroll to Explore (4 Scrolls)
-            </span>
-            <motion.div
-              animate={{ y: [0, 6, 0] }}
-              transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-              className="w-5 h-8 rounded-full border border-white/40 flex items-start justify-center p-1"
-            >
-              <div className="w-1 h-2 bg-gold-400 rounded-full" />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* When 4 Scrolls Complete -> Stays on Final Frame + Prompt to Enter Landing Page */}
       <AnimatePresence>
