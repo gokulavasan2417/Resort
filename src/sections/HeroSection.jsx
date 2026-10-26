@@ -64,6 +64,7 @@ export default function HeroSection({ onExplore, onBook }) {
   const dragStartX = useRef(0);
   const dragStartY = useRef(0);
   const isMouseDownRef = useRef(false);
+  const isScrollingToRoomsRef = useRef(false);
 
   const total = introSlides.length;
 
@@ -129,18 +130,38 @@ export default function HeroSection({ onExplore, onBook }) {
       } else {
         handlePrev();
       }
+    } else if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 40) {
+      // Swipe up (scroll down) -> smoothly transition to Rooms section
+      if (isScrollingToRoomsRef.current) return;
+      isScrollingToRoomsRef.current = true;
+      onExplore();
+      setTimeout(() => {
+        isScrollingToRoomsRef.current = false;
+      }, 1000);
     }
   };
 
-  // Trackpad Horizontal Gestures (Swiping left/right changes slides, up/down scrolls naturally)
+  // Wheel Gestures (Horizontal swipes change slides; vertical scroll smoothly transitions to Rooms)
   const handleWheel = (e) => {
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 30) {
+    // 1. Horizontal trackpad gesture -> cycle room slides
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 25) {
       if (isTransitioningRef.current) return;
       if (e.deltaX > 0) {
         handleNext();
       } else {
         handlePrev();
       }
+      return;
+    }
+
+    // 2. Vertical scroll down on this page -> smoothly scroll to that page (Rooms)
+    if (e.deltaY > 20) {
+      if (isScrollingToRoomsRef.current) return;
+      isScrollingToRoomsRef.current = true;
+      onExplore();
+      setTimeout(() => {
+        isScrollingToRoomsRef.current = false;
+      }, 1000);
     }
   };
 
